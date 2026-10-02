@@ -2,7 +2,7 @@ stages:
   download:
     cmd: uv run scripts/download_data.py
     outs:
-      # tcga/rgbs/*.png, tcga/masks/*.png, train_test_splits/*.csv, region_summary.csv  (~1,709 ROIs)
+      # {images,inst,type,sem}/<roi>.png and samples.csv  (1,349 ROIs)
       - data/raw:
           persist: true  # keep partial downloads so re-runs resume
           cache: false   # skip DVC's cache: data/raw is large and can be downloaded again

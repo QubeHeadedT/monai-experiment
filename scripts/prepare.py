@@ -1,8 +1,10 @@
 """Stage 2 - turn raw PanopTILs masks into HoVerNet targets and split the data.
 
 Inputs:
-    data/raw/tcga/rgbs/<roi>.png, data/raw/tcga/masks/<roi>.png
-    data/raw/train_test_splits/fold_<k>_{train,test}.csv
+    data/raw/images/<roi>.png    RGB image
+    data/raw/inst/<roi>.png      nucleus instance IDs (0 = background)
+    data/raw/type/<roi>.png      nucleus class codes (see prepare.class_map)
+    data/raw/samples.csv         roi, slide_name, hospital
     params.yaml: prepare.*
 
 Outputs:
@@ -10,14 +12,14 @@ Outputs:
     data/prepared/splits.json         {"train": [roi, ...], "val": [...], "test": [...]}
 
 TODO:
-    1. Split by slide/hospital, never by ROI: ROIs from one slide must stay in one split.
-       Use the official fold's test slides as the test set and hold out whole hospitals from its
-       training slides for validation (slide name = ROI filename before "_xmin").
-    2. Build an instance map: the masks have no instance IDs, only nucleus classes (channel 1) and
-       nucleus boundary edges (channel 2). Separate touching nuclei using the edges
-       (hint: skimage.measure.label, skimage.segmentation.expand_labels).
-    3. Build a class map with prepare.class_map, one class per nucleus.
-    4. Decide what to do with "exclude" pixels (nucleus code 0, about 1% of pixels).
+    1. Split by hospital, never by ROI: ROIs from one slide (and ideally one hospital) must stay in
+       one split, or the test score leaks. Hold out whole hospitals for test (prepare.test_fraction),
+       then hold out whole hospitals from the rest for validation (prepare.val_fraction).
+       Use samples.csv (hint: sklearn's GroupShuffleSplit, or shuffle the hospital list yourself).
+    2. Check the instance map: confirm IDs are unique per nucleus and see how the PNG stores them
+       (bit depth, max ID). Relabel to consecutive IDs if that helps.
+    3. Build a class map with prepare.class_map, one class per nucleus (check whether every pixel
+       of an instance has the same type code, and decide what to do when it doesn't).
 """
 
 import json

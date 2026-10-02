@@ -1,64 +1,61 @@
-"""Stage 1 - download PanopTILs (manual regions + bootstrapped nuclei) from Google Drive.
+"""Stage 1 - download PanopTILs (refined) from Hugging Face and unpack it into PNGs.
 
-Outputs:
-    data/raw/tcga/rgbs/<roi>.png      1024x1024 RGB ROIs at 0.25 MPP (40x)
-    data/raw/tcga/masks/<roi>.png     3-channel masks: region class, nucleus class, nucleus edges
-    data/raw/train_test_splits/       official hospital-wise 5-fold splits (fold_<k>_{train,test}.csv)
-    data/raw/region_summary.csv
+Source: https://huggingface.co/datasets/histolytics-hub/panoptils_refined, a curated version of
+the PanopTILs manual regions + bootstrapped nuclei release (1,349 ROIs, CC0-1.0). It ships as a
+single ~2.8 GB Parquet file, cached by huggingface_hub (~/.cache/huggingface) so interrupted
+downloads resume.
 
-Google Drive throttles bulk downloads (it can start refusing files after a few hundred).
-Files already on disk are skipped, so re-run later to resume, or download the folder from
-the browser instead (see README).
+Outputs (one PNG per ROI and per array, all 1024x1024 at 0.25 MPP):
+    data/raw/images/<roi>.png    RGB image
+    data/raw/inst/<roi>.png      nucleus instance IDs (0 = background)
+    data/raw/type/<roi>.png      nucleus class per pixel (codes in params.yaml prepare.class_map)
+    data/raw/sem/<roi>.png       tissue region class per pixel
+    data/raw/samples.csv         roi, slide_name, hospital
 
 Usage:
     uv run scripts/download_data.py
-    uv run scripts/download_data.py --extras csv vis   # also per-nucleus CSVs and visualisations
 """
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import csv
 from pathlib import Path
 
-import gdown
+import pyarrow.parquet as pq
+from huggingface_hub import hf_hub_download
 from tqdm import tqdm
 
-FOLDER_URL = "https://drive.google.com/drive/folders/1QOaUSz3zIoVwVVuyj3uAyfVbIdOTNMmZ"
-
-
-def wanted(path: str, extras: list[str]) -> bool:
-    parts = path.split("/")
-    if parts[0] == "tcga":
-        return parts[1] in {"rgbs", "masks", *extras}
-    return True  # train_test_splits/ and region_summary.csv
-
-
-def fetch(file_id: str, dest: Path) -> None:
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(dest.suffix + ".part")
-    gdown.download(id=file_id, output=str(tmp), quiet=True, retries=3)
-    tmp.rename(dest)
+REPO_ID = "histolytics-hub/panoptils_refined"
+REVISION = "d40293bc1ac0d0da8f271959fdb990aeea2d884f"  # pinned so re-runs get the same data
+ARRAYS = ("image", "inst", "type", "sem")
+DIRS = {"image": "images", "inst": "inst", "type": "type", "sem": "sem"}
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, default=Path("data/raw"))
-    parser.add_argument("--extras", nargs="*", default=[], choices=["csv", "vis"])
-    parser.add_argument("--workers", type=int, default=4)
     args = parser.parse_args()
 
-    print("Listing the Drive folder (takes a minute)...")
-    listing = gdown.download_folder(url=FOLDER_URL, skip_download=True, quiet=True)
-    todo = [(f.id, args.out / f.path) for f in listing if wanted(f.path, args.extras)]
-    todo = [(i, dest) for i, dest in todo if not dest.exists()]
-    print(f"{len(listing)} files in folder, {len(todo)} to download into {args.out}")
+    print(f"Downloading {REPO_ID} (~2.8 GB, resumes if interrupted)...")
+    parquet = hf_hub_download(REPO_ID, "panoptils_refined.parquet", repo_type="dataset", revision=REVISION)
 
-    failed = 0
-    with ThreadPoolExecutor(args.workers) as pool:
-        futures = [pool.submit(fetch, i, dest) for i, dest in todo]
-        for future in tqdm(as_completed(futures), total=len(futures)):
-            failed += future.exception() is not None
-    if failed:
-        raise SystemExit(f"{failed} downloads failed (Drive throttling?). Re-run later to resume.")
+    for name in DIRS.values():
+        (args.out / name).mkdir(parents=True, exist_ok=True)
+    table = pq.ParquetFile(parquet)
+    rows = []
+    with tqdm(total=table.metadata.num_rows, desc="Unpacking") as bar:
+        # The PNG bytes are written as-is: no decoding, so pixel values are exactly as published.
+        for batch in table.iter_batches(batch_size=32):
+            for row in batch.to_pylist():
+                for array in ARRAYS:
+                    (args.out / DIRS[array] / f"{row['sample']}.png").write_bytes(row[array])
+                rows.append((row["sample"], row["slide_name"], row["hospital"]))
+                bar.update()
+
+    with open(args.out / "samples.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["roi", "slide_name", "hospital"])
+        writer.writerows(rows)
+    print(f"Wrote {len(rows)} ROIs to {args.out}")
 
 
 if __name__ == "__main__":

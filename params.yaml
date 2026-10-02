@@ -2,13 +2,13 @@
 # Change values here and `uv run dvc repro` re-runs only the stages that depend on them.
 
 prepare:
-  fold: 1 # official PanopTILs fold: its test hospitals become our test set
-  val_fraction: 0.15 # fraction of training slides (held out by hospital) used for validation
+  test_fraction: 0.2 # fraction of slides (held out by hospital) used for testing
+  val_fraction: 0.15 # fraction of the remaining slides (held out by hospital) used for validation
   seed: 0
-  # PanopTILs nucleus codes (mask channel 1) -> classes the model predicts (0 = background)
-  # 0 exclude, 1 cancer, 2 stromal, 3 large stromal, 4 lymphocyte, 5 plasma/large TIL,
-  # 6 normal epithelial, 7 other, 8 unknown, 9 background
-  class_map: { 0: 0, 1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 4, 7: 5, 8: 5, 9: 0 }
+  # Nucleus codes in data/raw/type/*.png -> classes the model predicts (0 = background)
+  # 0 background, 1 neoplastic, 2 stromal, 3 inflammatory (lymphocytes + plasma cells),
+  # 4 epithelial (normal), 5 other, 6 unknown
+  class_map: { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 5 }
   class_names: [background, tumour, stromal, til, normal_epithelial, other]
 
 train:

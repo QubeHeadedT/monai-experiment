@@ -8,7 +8,7 @@ cell it is. Start from MONAI's **HoVerNet** and fine-tune it on **PanopTILs**.
 - **Input:** a 1024×1024 RGB region of interest (ROI) at 0.25 µm/pixel (40×).
 - **Output:** an instance map (one ID per nucleus) and a class map with 6 classes: background, tumour,
   stromal, TIL (lymphocytes + plasma cells), normal epithelial, and other. The mapping from the raw
-  PanopTILs codes is in [params.yaml](params.yaml).
+  dataset codes is in [params.yaml](params.yaml).
 - **Score:** panoptic quality (PQ) on the held-out test hospitals. Report binary PQ (bPQ), PQ for each
   class, and mPQ (the mean over classes).
 
@@ -40,29 +40,28 @@ uv run python -c "import torch; print(torch.cuda.is_available())"
 
 ## Data
 
-PanopTILs: <https://sites.google.com/view/panoptils>. Use the **"manual regions & bootstrapped
-nuclei"** release ([Drive folder](https://drive.google.com/drive/folders/1QOaUSz3zIoVwVVuyj3uAyfVbIdOTNMmZ)).
-It has 1,709 ROIs from 151 TCGA patients, plus official hospital-wise 5-fold splits.
+PanopTILs: <https://sites.google.com/view/panoptils>. We use
+[panoptils_refined](https://huggingface.co/datasets/histolytics-hub/panoptils_refined), a curated
+version of the **"manual regions & bootstrapped nuclei"** release on Hugging Face. It has 1,349 ROIs
+from TCGA breast cancer slides; ROIs with incomplete annotations were dropped, so the official
+PanopTILs fold splits don't apply and we make our own hospital-wise splits.
 
-There are two ways to get it:
+Get it with `uv run dvc repro download` (or `uv run scripts/download_data.py`). It downloads one
+~2.8 GB Parquet file (cached in `~/.cache/huggingface`, resumes if interrupted) and unpacks it into
+one PNG per ROI:
 
-1. **Script:** `uv run dvc repro download` (or `uv run scripts/download_data.py`). Google Drive throttles
-   bulk downloads and may start refusing files after a few hundred. Re-run later to resume; files
-   already downloaded are skipped.
-2. **Browser:** open the Drive folder and download `tcga/` (only `rgbs/` and `masks/` are needed) and
-   `train_test_splits/`. Drive zips them. Unzip so you end up with `data/raw/tcga/rgbs/*.png`,
-   `data/raw/tcga/masks/*.png` and `data/raw/train_test_splits/*.csv`. Then run
-   `uv run dvc commit download` so DVC treats the stage as done.
-
-Each mask is a 3-channel PNG:
-
-| Channel | Content |
+| Path | Content |
 | --- | --- |
-| 0 | region class: 0 exclude, 1 cancerous epithelium, 2 stroma, 3 TILs, 4 normal epithelium, 5 junk/debris, 6 blood, 7 other, 8 whitespace |
-| 1 | nucleus class: 0 exclude, 1 cancer, 2 stromal, 3 large stromal, 4 lymphocyte, 5 plasma/large TIL, 6 normal epithelial, 7 other, 8 unknown, 9 background |
-| 2 | nucleus boundary edges (binary) |
+| `data/raw/images/<roi>.png` | RGB image |
+| `data/raw/inst/<roi>.png` | nucleus instance IDs, 0 = background |
+| `data/raw/type/<roi>.png` | nucleus class: 0 background, 1 neoplastic, 2 stromal, 3 inflammatory, 4 epithelial, 5 other, 6 unknown |
+| `data/raw/sem/<roi>.png` | tissue region: 0 background, 1 tumour, 2 stroma, 3 epithelium, 4 junk/debris, 5 blood, 6 other |
+| `data/raw/samples.csv` | `roi`, `slide_name`, `hospital` for every ROI |
 
-There are no instance IDs. Deriving them from channels 1 and 2 is part of the `prepare` stage.
+Load any of them with `np.array(PIL.Image.open(path))`. The dataset card's example uses
+`datasets.load_dataset`. You don't need it here: it fetches the same Parquet file, keeps a second
+Arrow copy on disk, and its pandas example loads all 2.8 GB into memory. The PNGs above hold exactly
+the same bytes as the Parquet columns.
 
 ## Running the pipeline with DVC
 
@@ -136,8 +135,8 @@ uv run dvc push                    # upload cached outputs
 uv run dvc pull                    # on another machine: fetch them instead of re-running
 ```
 
-`data/raw` is marked `cache: false` in `dvc.yaml`, so DVC never copies the ~1,700 raw images into
-its cache or a remote. Anyone who needs them downloads them from Drive.
+`data/raw` is marked `cache: false` in `dvc.yaml`, so DVC never copies the ~1,350 raw ROIs into
+its cache or a remote. Anyone who needs them downloads them from Hugging Face.
 
 ### Learning DVC
 
