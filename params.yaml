@@ -1,0 +1,31 @@
+# Parameters for the DVC pipeline (dvc.yaml). Each stage reads its own section.
+# Change values here and `uv run dvc repro` re-runs only the stages that depend on them.
+
+prepare:
+  fold: 1                # official PanopTILs fold: its test hospitals become our test set
+  val_fraction: 0.15     # fraction of training slides (held out by hospital) used for validation
+  seed: 0
+  # PanopTILs nucleus codes (mask channel 1) -> classes the model predicts (0 = background)
+  # 0 exclude, 1 cancer, 2 stromal, 3 large stromal, 4 lymphocyte, 5 plasma/large TIL,
+  # 6 normal epithelial, 7 other, 8 unknown, 9 background
+  class_map: {0: 0, 1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 4, 7: 5, 8: 5, 9: 0}
+  class_names: [background, tumour, stromal, til, normal_epithelial, other]
+
+train:
+  pretrained_bundle: pathology_nuclei_segmentation_classification  # MONAI model zoo, CoNSeP-trained
+  hovernet_mode: fast    # fast: 256px input -> 164px output; original: 270 -> 80
+  epochs: 30
+  freeze_encoder_epochs: 5
+  batch_size: 4
+  lr: 1.0e-4
+  amp: false             # AMP is ~3x *slower* on GPUs without tensor cores (e.g. GTX 16xx)
+  seed: 0
+
+predict:
+  sw_batch_size: 4
+
+evaluate:
+  match_iou: 0.5
+
+mlflow:
+  experiment_name: panoptils-hovernet

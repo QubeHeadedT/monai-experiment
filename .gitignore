@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local MLflow store (when MLFLOW_TRACKING_URI is not set)
+mlflow.db
+mlruns/
+mlartifacts/
+
+# MONAI bundle downloads (pretrained weights)
+data/pretrained/

@@ -1,0 +1,71 @@
+stages:
+  download:
+    cmd: uv run scripts/download_data.py
+    outs:
+      # tcga/rgbs/*.png, tcga/masks/*.png, train_test_splits/*.csv, region_summary.csv  (~1,709 ROIs)
+      - data/raw:
+          persist: true  # keep partial downloads so re-runs resume
+          cache: false   # skip DVC's cache: data/raw is large and can be downloaded again
+
+  prepare:
+    cmd: uv run scripts/prepare.py
+    deps:
+      - scripts/prepare.py
+      - data/raw
+    params:
+      - prepare
+    outs:
+      # data/prepared/<split>/<roi>.npz with
+      #   image (1024, 1024, 3) uint8, inst_map (1024, 1024) int32, type_map (1024, 1024) uint8
+      - data/prepared/train
+      - data/prepared/val
+      - data/prepared/test
+      - data/prepared/splits.json  # {"train": [roi, ...], "val": [...], "test": [...]}
+
+  train:
+    cmd: uv run scripts/train.py
+    deps:
+      - scripts/train.py
+      - scripts/common.py
+      - data/prepared/train
+      - data/prepared/val
+    params:
+      - train
+      - mlflow
+    outs:
+      - models/hovernet.pt         # best checkpoint (state_dict) by validation score
+      - models/mlflow_run_id.txt   # lets the evaluate stage log to the same MLflow run
+    metrics:
+      - metrics/train.json:        # best validation scores
+          cache: false
+    plots:
+      - metrics/train_log.csv:     # one row per epoch: epoch, train_loss, val_loss, ...
+          x: epoch
+          cache: false
+
+  predict:
+    cmd: uv run scripts/predict.py
+    deps:
+      - scripts/predict.py
+      - models/hovernet.pt
+      - data/prepared/test
+    params:
+      - predict
+    outs:
+      # data/predictions/test/<roi>.npy, int32 (2, 1024, 1024): [instance map, class map]
+      - data/predictions/test
+
+  evaluate:
+    cmd: uv run scripts/evaluate.py
+    deps:
+      - scripts/evaluate.py
+      - scripts/common.py
+      - data/predictions/test
+      - data/prepared/test
+      - models/mlflow_run_id.txt
+    params:
+      - evaluate
+      - prepare.class_names
+    metrics:
+      - metrics/test.json:         # bPQ, mPQ and PQ per class on the test split
+          cache: false
