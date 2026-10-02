@@ -15,9 +15,10 @@ TODO:
     1. Split by hospital, never by ROI: ROIs from one slide (and ideally one hospital) must stay in
        one split, or the test score leaks. Hold out whole hospitals for test (prepare.test_fraction),
        then hold out whole hospitals from the rest for validation (prepare.val_fraction).
-       Use samples.csv (hint: sklearn's GroupShuffleSplit, or shuffle the hospital list yourself).
-    2. Check the instance map: confirm IDs are unique per nucleus and see how the PNG stores them
-       (bit depth, max ID). Relabel to consecutive IDs if that helps.
+       Use samples.csv (hint: shuffle the hospital list with prepare.seed, or sklearn's
+       GroupShuffleSplit - run `uv add scikit-learn` first, it is only installed indirectly).
+    2. Check the instance map. The PNGs are 16-bit (uint16, a few hundred nuclei per ROI): cast to
+       int32 for inst_map, and confirm each ID is one nucleus.
     3. Build a class map with prepare.class_map, one class per nucleus (check whether every pixel
        of an instance has the same type code, and decide what to do when it doesn't).
 """

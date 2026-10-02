@@ -14,6 +14,9 @@ mlflow.db
 mlruns/
 mlartifacts/
 
+# Raw dataset (~2.7 GB, re-downloaded by `dvc repro download`; cache: false, so DVC doesn't ignore it)
+data/raw/
+
 # MONAI bundle downloads (pretrained weights)
 data/pretrained/
 
