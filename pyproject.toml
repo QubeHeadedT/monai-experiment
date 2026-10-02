@@ -3,6 +3,8 @@ name = "panoptils-hovernet"
 version = "0.1.0"
 description = "Training activity: fine-tune MONAI HoVerNet on PanopTILs nuclei"
 readme = "README.md"
+license = "PolyForm-Noncommercial-1.0.0"
+license-files = ["LICENSE.md"]
 requires-python = ">=3.13"
 dependencies = [
     "dvc>=3.67.1",

@@ -16,12 +16,32 @@ TODO:
        (monai.apps.pathology.transforms.post.array).
 """
 
+from pathlib import Path
+
+import numpy as np
+
 from common import load_params
+
+IN_DIR = Path("data/prepared/test")
+OUT_DIR = Path("data/predictions/test")
 
 
 def main() -> None:
     params = load_params()["predict"]
-    raise NotImplementedError("scripts/predict.py: see the TODO list in the docstring")
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # ---------------------------------------------------------------------------------------------
+    # PLACEHOLDER - delete this block when you implement the stage.
+    # No model is used: it writes an empty prediction (no nuclei found) for every test ROI, in the
+    # real output format.
+    # ---------------------------------------------------------------------------------------------
+    print("WARNING: predict.py is a placeholder - writing empty predictions")
+    for path in sorted(IN_DIR.glob("*.npz")):
+        with np.load(path) as roi:
+            height, width = roi["image"].shape[:2]
+        prediction = np.zeros((2, height, width), dtype=np.int32)  # [instance map, class map]
+        np.save(OUT_DIR / f"{path.stem}.npy", prediction)
+    # ------------------------------------- END PLACEHOLDER ---------------------------------------
 
 
 if __name__ == "__main__":

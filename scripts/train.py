@@ -21,10 +21,12 @@ TODO:
     5. Log params, per-epoch metrics and artefacts to MLflow (wiring below).
 """
 
+import csv
 import json
 from pathlib import Path
 
 import mlflow
+import torch
 
 from common import RUN_ID_FILE, load_params, start_mlflow_run
 
@@ -38,14 +40,28 @@ def main() -> None:
         RUN_ID_FILE.write_text(run.info.run_id)
         mlflow.log_params({f"train.{k}": v for k, v in params["train"].items()})
 
-        # TODO: build data loaders, model, loss and optimiser, then train. Inside your epoch loop:
-        #   mlflow.log_metrics({"train_loss": ..., "val_loss": ..., "val_bPQ": ...}, step=epoch)
-        #   append a row to metrics/train_log.csv
-        # After training:
-        #   torch.save(model.state_dict(), "models/hovernet.pt")
-        #   Path("metrics/train.json").write_text(json.dumps(best_scores))
-        #   mlflow.log_artifact("models/hovernet.pt")
-        raise NotImplementedError("scripts/train.py: see the TODO list in the docstring")
+        # -----------------------------------------------------------------------------------------
+        # PLACEHOLDER - delete this block when you implement the stage.
+        # No training happens: it writes made-up losses and an empty checkpoint in the real output
+        # formats so `dvc repro` and MLflow logging can be tried end to end.
+        # -----------------------------------------------------------------------------------------
+        print("WARNING: train.py is a placeholder - no model is trained")
+        rows = []
+        for epoch in range(3):
+            row = {"epoch": epoch, "train_loss": 1.0 / (epoch + 1), "val_loss": 1.2 / (epoch + 1)}
+            rows.append(row)
+            mlflow.log_metrics({k: v for k, v in row.items() if k != "epoch"}, step=epoch)
+        with open("metrics/train_log.csv", "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+            writer.writeheader()
+            writer.writerows(rows)
+        best = min(rows, key=lambda r: r["val_loss"])
+        Path("metrics/train.json").write_text(json.dumps(best, indent=2))
+        # A real checkpoint would be model.state_dict(); this one is an empty stand-in.
+        torch.save({"placeholder": True}, "models/hovernet.pt")
+        # ----------------------------------- END PLACEHOLDER -------------------------------------
+
+        mlflow.log_artifact("metrics/train_log.csv")
 
 
 if __name__ == "__main__":
