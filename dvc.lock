@@ -1,0 +1,180 @@
+schema: '2.0'
+stages:
+  download:
+    cmd: uv run scripts/download_data.py
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: d5417f765ceaf65f52e4bc0f8e59d1c0.dir
+      size: 2825676925
+      nfiles: 5397
+  prepare:
+    cmd: uv run scripts/prepare.py
+    deps:
+    - path: data/raw
+      hash: md5
+      md5: d5417f765ceaf65f52e4bc0f8e59d1c0.dir
+      size: 2825676925
+      nfiles: 5397
+    - path: scripts/prepare.py
+      hash: md5
+      md5: 2a026e2fd2756d943bde8e2c1b3e446e
+      size: 3357
+    params:
+      params.yaml:
+        prepare:
+          test_fraction: 0.2
+          val_fraction: 0.15
+          seed: 0
+          class_map:
+            0: 0
+            1: 1
+            2: 2
+            3: 3
+            4: 4
+            5: 5
+            6: 5
+          class_names:
+          - background
+          - tumour
+          - stromal
+          - til
+          - normal_epithelial
+          - other
+    outs:
+    - path: data/prepared/splits.json
+      hash: md5
+      md5: 9af8f2337c73605bf507c2e34666b6b1
+      size: 230
+    - path: data/prepared/test
+      hash: md5
+      md5: 2a46f835ffc4586d95ffb0697a9635b5.dir
+      size: 52546
+      nfiles: 3
+    - path: data/prepared/train
+      hash: md5
+      md5: 87f1f1384e9b70bbdff58be639524cc8.dir
+      size: 52175
+      nfiles: 3
+    - path: data/prepared/val
+      hash: md5
+      md5: d2a4921f520231593bfe243d76bd336d.dir
+      size: 52085
+      nfiles: 3
+  train:
+    cmd: uv run scripts/train.py
+    deps:
+    - path: data/prepared/train
+      hash: md5
+      md5: 87f1f1384e9b70bbdff58be639524cc8.dir
+      size: 52175
+      nfiles: 3
+    - path: data/prepared/val
+      hash: md5
+      md5: d2a4921f520231593bfe243d76bd336d.dir
+      size: 52085
+      nfiles: 3
+    - path: scripts/common.py
+      hash: md5
+      md5: 04c141562854a7a845accd81f991faa4
+      size: 1229
+    - path: scripts/train.py
+      hash: md5
+      md5: 59547c3e9af831f0d3b92455bd829e21
+      size: 3059
+    params:
+      params.yaml:
+        mlflow.experiment_name: panoptils-hovernet
+        train:
+          pretrained_bundle: pathology_nuclei_segmentation_classification
+          hovernet_mode: fast
+          epochs: 30
+          freeze_encoder_epochs: 5
+          batch_size: 4
+          lr: 0.0001
+          amp: false
+          seed: 0
+    outs:
+    - path: metrics/train.json
+      hash: md5
+      md5: 62224fe83f8d7bd6e4dcc4023e62ebb8
+      size: 87
+    - path: metrics/train_log.csv
+      hash: md5
+      md5: 5caba1eb75bbdc9257426a8b60366925
+      size: 91
+    - path: models/hovernet.pt
+      hash: md5
+      md5: 2427d5ffaebbb250630c5f3080c3d6ec
+      size: 1267
+    - path: models/mlflow_run_id.txt
+      hash: md5
+      md5: 7b6ae3460bc10f214b5e731266966eb5
+      size: 32
+  predict:
+    cmd: uv run scripts/predict.py
+    deps:
+    - path: data/prepared/test
+      hash: md5
+      md5: 2a46f835ffc4586d95ffb0697a9635b5.dir
+      size: 52546
+      nfiles: 3
+    - path: models/hovernet.pt
+      hash: md5
+      md5: 2427d5ffaebbb250630c5f3080c3d6ec
+      size: 1267
+    - path: scripts/predict.py
+      hash: md5
+      md5: df20502c0b5ed055f90c5232b00852e5
+      size: 1807
+    params:
+      params.yaml:
+        predict:
+          sw_batch_size: 4
+    outs:
+    - path: data/predictions/test
+      hash: md5
+      md5: 89a4103427e2da158e9b94bf96a5d241.dir
+      size: 25166208
+      nfiles: 3
+  evaluate:
+    cmd: uv run scripts/evaluate.py
+    deps:
+    - path: data/predictions/test
+      hash: md5
+      md5: 89a4103427e2da158e9b94bf96a5d241.dir
+      size: 25166208
+      nfiles: 3
+    - path: data/prepared/test
+      hash: md5
+      md5: 2a46f835ffc4586d95ffb0697a9635b5.dir
+      size: 52546
+      nfiles: 3
+    - path: models/mlflow_run_id.txt
+      hash: md5
+      md5: 7b6ae3460bc10f214b5e731266966eb5
+      size: 32
+    - path: scripts/common.py
+      hash: md5
+      md5: 04c141562854a7a845accd81f991faa4
+      size: 1229
+    - path: scripts/evaluate.py
+      hash: md5
+      md5: 01491a09f3711443afc16bf9afa50135
+      size: 1836
+    params:
+      params.yaml:
+        evaluate:
+          match_iou: 0.5
+        prepare.class_names:
+        - background
+        - tumour
+        - stromal
+        - til
+        - normal_epithelial
+        - other
+    outs:
+    - path: metrics/test.json
+      hash: md5
+      md5: 6b5c7478444b0610254601a4f64dee4b
+      size: 138

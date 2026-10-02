@@ -1,0 +1,9 @@
+{
+  "bPQ": 0.0,
+  "mPQ": 0.0,
+  "PQ_tumour": 0.0,
+  "PQ_stromal": 0.0,
+  "PQ_til": 0.0,
+  "PQ_normal_epithelial": 0.0,
+  "PQ_other": 0.0
+}
