@@ -31,7 +31,7 @@ stages:
       - data/prepared/val
     params:
       - train
-      - mlflow
+      - mlflow.experiment_name  # not mlflow.tracking_uri: changing servers shouldn't retrain
     outs:
       - models/hovernet.pt         # best checkpoint (state_dict) by validation score
       - models/mlflow_run_id.txt   # lets the evaluate stage log to the same MLflow run

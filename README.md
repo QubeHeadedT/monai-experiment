@@ -172,18 +172,43 @@ stores the run ID in `models/mlflow_run_id.txt`, and `evaluate.py` adds the test
 Your job is to log per-epoch metrics, and optionally the checkpoint and example predictions, inside the
 training loop.
 
-To log to the shared MLflow server, set these environment variables before running the pipeline
-(for example in a `.env` file you `source`, which should not be committed):
+Shared runs go to an Amazon SageMaker-managed MLflow app. Copy its ARN from SageMaker Studio
+(**MLflow**, then the app's details), or ask whoever set it up, and put it in
+[params.yaml](params.yaml):
+
+```yaml
+mlflow:
+  experiment_name: panoptils-hovernet
+  tracking_uri: arn:aws:sagemaker:<region>:<account-id>:...   # the MLflow app ARN
+```
+
+Only `train` depends on the `mlflow` section, and only on `experiment_name`. So setting or changing
+`tracking_uri` never makes DVC re-run a stage. To log somewhere else for a one-off, set the
+`MLFLOW_TRACKING_URI` environment variable, which takes precedence. With neither set, runs go to a local
+`./mlflow.db`.
+
+The ARN isn't a secret. Access is controlled by your AWS credentials, which stay out of the repo. Set
+them in your shell, or in a `.env` file you `source` (it is git-ignored):
 
 ```bash
-export MLFLOW_TRACKING_URI=https://<your-mlflow-server>       # TODO: fill in when the server is up
-export MLFLOW_TRACKING_USERNAME=<username>                     # only if the server uses basic auth
-export MLFLOW_TRACKING_PASSWORD=<password>
+export AWS_PROFILE=<profile>          # or AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN
+export AWS_REGION=<region>            # the region in the ARN
 ```
+
+This works because the `sagemaker-mlflow` plugin (already a dependency) lets MLflow accept an ARN as
+the tracking URI and signs every request with your AWS credentials. No MLflow username or password is
+needed, but your AWS identity needs IAM permission for the SageMaker MLflow actions (`sagemaker-mlflow:*`)
+on that ARN. Check the connection with:
+
+```bash
+uv run python -c "import mlflow, yaml; mlflow.set_tracking_uri(yaml.safe_load(open('params.yaml'))['mlflow']['tracking_uri']); print(mlflow.search_experiments())"
+```
+
+See the AWS guide [Integrate MLflow with your environment](https://docs.aws.amazon.com/sagemaker/latest/dg/mlflow-track-experiments.html).
 
 Runs are grouped under the experiment `mlflow.experiment_name` in `params.yaml` (`panoptils-hovernet`).
 Give each run a name (`mlflow.start_run(run_name=...)` or `mlflow.set_tag("mlflow.runName", ...)`) so
-runs can be compared. Without `MLFLOW_TRACKING_URI`, runs go to a local `./mlflow.db`; view them with `uv run mlflow ui`.
+runs can be compared. View local runs (in `./mlflow.db`) with `uv run mlflow ui`.
 
 ## MONAI resources for HoVerNet
 
